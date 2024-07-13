@@ -21,26 +21,15 @@ pipeline {
          
         stage('Build docker image') {
             steps {
-                script {   
-                    // Add Docker permissions check and service start commands
-                    sh """
-                    if ! groups $USER | grep -q '\\bdocker\\b'; then
-                        echo 'User is not in the docker group. Adding user to docker group...'
-                        sudo usermod -aG docker $USER
-                        echo 'You need to log out and log back in for the changes to take effect.'
-                        exit 1
-                    else
-                        echo 'User is already in the docker group.'
-                    fi
-                    
-                    if ! sudo systemctl is-active --quiet docker; then
-                        echo 'Docker service is not running. Starting Docker service...'
-                        sudo systemctl start docker
-                    else
-                        echo 'Docker service is already running.'
-                    fi
-                    """      
-                    def customImage = docker.build('initsixcloud/petclinic', "./docker")
+                script {         
+                    // Logout and Login to Docker Hub
+                    sh 'docker logout'
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin https://registry.hub.docker.com'
+                    }
+
+                    // Build and push the Docker image
+                    def customImage = docker.build('nonotrifi/petclinic', "./docker") // Ensure the image is tagged with your Docker Hub namespace
                     docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
                         customImage.push("${env.BUILD_NUMBER}")
                     }
